@@ -2,6 +2,7 @@
 #define GRAPH_HPP
 
 #include <list>
+#include <memory>
 #include <unordered_map>
 
 using namespace std;
@@ -18,11 +19,12 @@ class Graph
         Vertex u;
         Vertex v;
         T_edata data;
+        Edge(const Vertex &u, const Vertex &v, const T_edata &data) :
+            u(u), v(v), data(data) {}
     };
-    typedef unordered_map<Vertex,Edge*> Adjacency;
+    typedef unordered_map<Vertex,shared_ptr<Edge>> Adjacency;
     typedef unordered_map<Vertex,Adjacency> AdjacencyMap;
     typedef unordered_map<Vertex,T_vdata> VertexMap;
-    typedef list<Edge> EdgeList;
     
     ////////////////////////////////////////////////////////////////
     /// \brief adj_map: adjacency map of the vertices.
@@ -33,11 +35,11 @@ class Graph
     /// \brief vertex_map
     ///
     VertexMap vertex_map;
-    
+
     ////////////////////////////////////////////////////////////////
-    /// \brief edge_list:list of all edges in the graph.
+    /// \brief size = number of edges (graph size).
     ///
-    EdgeList edge_list;
+    size_t num_edges;
 
     ////////////////////////////////////////////////////////////////
     /// \brief directed has value true if digraph, false otherwise.
@@ -72,7 +74,7 @@ public:
     /// \param e: edge.
     ///
     void add_edge(const Vertex &u, const Vertex &v,
-                  const T_edata data = T_edata());
+                  const T_edata &data = T_edata());
 
     ////////////////////////////////////////////////////////////////
     /// \brief remove_vertex removes vertex u.
@@ -85,7 +87,7 @@ public:
     ///        (u_id, v_id).
     /// \param u_id, v_id: IDs of the endpoints of the edge.
     ///
-    void remove_edge(const long &u_id, const long &v_id); // *
+    void remove_edge(const Vertex &u, const Vertex &v); // *
 
     // ACCESS
     ////////////////////////////////////////////////////////////////
@@ -186,6 +188,7 @@ Graph<T_edata, T_vdata, T_vertex>::Graph(
 {
     this->directed = directed;
     this->no_loops = no_loops;
+    this->num_edges = 0;
 }
 
 template<class T_edata, class T_vdata, class T_vertex>
@@ -199,7 +202,7 @@ void Graph<T_edata, T_vdata, T_vertex>::add_vertex(
 
 template<class T_edata, class T_vdata, class T_vertex>
 void Graph<T_edata, T_vdata, T_vertex>::add_edge(
-        const Vertex &u, const Vertex &v, T_edata data)
+        const Vertex &u, const Vertex &v, const T_edata &data)
 {
     if (this->no_loops && u == v)
         return;
@@ -207,11 +210,13 @@ void Graph<T_edata, T_vdata, T_vertex>::add_edge(
     if (!this->has_edge(u, v)) {
         this->add_vertex(u);
         this->add_vertex(v);
-        this->edge_list.push_back({u, v, data});
 
-        this->adj_map[u][v] = &edge_list.back();
+        shared_ptr<Edge> new_edge(new Edge(u, v, data));
+        this->adj_map[u][v] = new_edge;
         if (!this->directed)
-            this->adj_map[v][u] = &edge_list.back();
+            this->adj_map[v][u] = new_edge;
+
+        this->num_edges++;
     }
 }
 
@@ -219,19 +224,33 @@ template<class T_edata, class T_vdata, class T_vertex>
 void Graph<T_edata, T_vdata, T_vertex>::remove_vertex(
         const Vertex &u)
 {
-    // // getting u iterator if it exists
-    // auto u_it = this->adj_list.find(u);
-    // // if vertex u is in the graph
-    // if (u_it != this->adj_list.end()){
-    //     // for each neighbor of u
-    //     for (pair<Vertex, list<Edge*>>& uv_edges: u_it->second) {
-    //         // implement remove_edge before this procedure
-    //         // cout << x.first << ": " << x.second;
-    //     }
+    if (this->has_vertex(u)) {
+        // // getting u iterator if it exists
+        // auto u_it = this->adj_list.find(u);
+        // // if vertex u is in the graph
+        // if (u_it != this->adj_list.end()){
+        //     // for each neighbor of u
+        //     for (pair<Vertex, list<Edge*>>& uv_edges: u_it->second) {
+        //         // implement remove_edge before this procedure
+        //         // cout << x.first << ": " << x.second;
+        //     }
 
-    //     adj_list.erase(u);
-    //     vtx_weights.erase(u);
-    // }
+        //     adj_list.erase(u);
+        //     vtx_weights.erase(u);
+        // }
+    }
+}
+
+template<class T_edata, class T_vdata, class T_vertex>
+void Graph<T_edata, T_vdata, T_vertex>::remove_edge(
+        const Graph::Vertex &u, const Graph::Vertex &v)
+{
+    if (this->has_edge(u, v)) {
+        this->adj_map[u].erase(v);
+        if (!this->directed)
+            this->adj_map[v].erase(u);
+        this->num_edges--;
+    }
 }
 
 template<class T_edata, class T_vdata, class T_vertex>
@@ -277,7 +296,7 @@ size_t Graph<T_edata, T_vdata, T_vertex>::order() const
 template<class T_edata, class T_vdata, class T_vertex>
 size_t Graph<T_edata, T_vdata, T_vertex>::size() const
 {
-    return edge_list.size();
+    return this->num_edges;
 }
 
 #endif // GRAPH_HPP
