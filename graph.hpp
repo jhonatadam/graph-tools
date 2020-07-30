@@ -1,10 +1,13 @@
 #ifndef GRAPH_HPP
 #define GRAPH_HPP
 
+
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include <generator.hpp>
+
+#include "generator.hpp"
+
 
 using namespace std;
 
@@ -23,8 +26,11 @@ public:
     using VertexContent = pair<T_vdata, Adjacency>;
     using VertexMap = unordered_map<Vertex, VertexContent>;
 
+
     ////////////////////////////////////////////////////////////////
-    /// \brief adj_map: adjacency map of the vertices.
+    /// \brief vmap is a map where the vertices are the keys and,
+    /// for each vertex (key), its content is the data and
+    /// adjacency of the vertex.
     VertexMap vmap;
 
     ////////////////////////////////////////////////////////////////
@@ -33,7 +39,7 @@ public:
 
     ////////////////////////////////////////////////////////////////
     /// \brief no_loops has value true if loops are allowed,
-    ///        false otherwise.
+    /// false otherwise.
     bool no_loops;
 
 public:
@@ -58,8 +64,8 @@ public:
     auto vertices() const;
     auto edges() const;
 
-    //    Graph * subgraph(vector<Vertex> &subgraph_vertices) const; // *
-    //    Graph * subgraph(vector<pair<long, long>> &subgraph_edges) const; // *
+    Graph * subgraph(vector<Vertex> const& subgraph_vertices) const;
+    Graph * subgraph(vector<pair<long, long>> const& subgraph_edges) const; // *
 
     // PROPERTIES
     auto neighbors(const Vertex &u) const;
@@ -294,11 +300,20 @@ auto Graph<T_edata, T_vdata, T_vertex>::edges() const
     using VMapIt = typename VertexMap::const_iterator;
     using AdjIt = typename Adjacency::const_iterator;
     using State = tuple<VMapIt, AdjIt, unordered_set<Vertex>>;
-    const Adjacency &begin_adj = vmap.begin()->second.second;
+
+    VMapIt vmap_it = vmap.begin();
+    while (vmap_it != vmap.end() && vmap_it->second.second.empty())
+        vmap_it++;
+
+    AdjIt adj_begin, adj_end;
+    if (vmap_it != vmap.end()) {
+        adj_begin = vmap_it->second.second.begin();
+        adj_end = vmap_it->second.second.end();
+    }
 
     return Generator<pair<Vertex, Vertex>, State> (
-        make_tuple(vmap.begin(), begin_adj.begin(), unordered_set<Vertex>()),
-        make_tuple(vmap.end(), begin_adj.end(), unordered_set<Vertex>()),
+        make_tuple(vmap_it, adj_begin, unordered_set<Vertex>()),
+        make_tuple(vmap.end(), adj_end, unordered_set<Vertex>()),
         [](State const &state)-> pair<Vertex, Vertex> {
             auto& [vmap_it, adj_it, visited] = state;
             return make_pair(vmap_it->first, adj_it->first);
@@ -325,6 +340,62 @@ auto Graph<T_edata, T_vdata, T_vertex>::edges() const
         }
     );
 }
+
+////////////////////////////////////////////////////////////////
+/// \brief subgraph: builds and returns a subgraph induced by
+/// the intersection of this graph vertices and a given vector
+/// of vertices.
+/// \param subgraph_vertices: vector of vertices.
+/// \return a pointer to a subgraph.
+///
+template<class T_edata, class T_vdata, class T_vertex>
+Graph<T_edata, T_vdata, T_vertex> *Graph<T_edata, T_vdata, T_vertex>::subgraph(
+    const vector<Graph::Vertex> &subgraph_vertices) const
+{
+    Graph<T_edata, T_vdata, T_vertex> *new_subgraph =
+        new Graph<T_edata, T_vdata, T_vertex>(no_loops);
+
+    for (Vertex const& u : subgraph_vertices) {
+        typename VertexMap::const_iterator u_it = vmap.find(u);
+        if (u_it != vmap.end()) {
+            new_subgraph->add_vertex(u, u_it->second.first);
+
+            const Adjacency & u_adj = u_it->second.second;
+            for (auto const& [v, edge_ptr] : u_adj)
+                if (new_subgraph->has_vertex(v))
+                    new_subgraph->add_edge(u, v, edge_ptr->data);
+        }
+    }
+
+    return new_subgraph;
+}
+
+////////////////////////////////////////////////////////////////
+/// \brief subgraph: returns a subgraph induced by
+/// the intersection of this graph edges and a given vector
+/// of edges.
+/// \param subgraph_vertices: vector of edges.
+/// \return a pointer to the builded subgraph.
+///
+template<class T_edata, class T_vdata, class T_vertex>
+Graph<T_edata, T_vdata, T_vertex> *Graph<T_edata, T_vdata, T_vertex>::subgraph(
+        const vector<pair<long, long> > &subgraph_edges) const
+{
+    Graph<T_edata, T_vdata, T_vertex> *new_subgraph =
+        new Graph<T_edata, T_vdata, T_vertex>(no_loops);
+
+    for (auto const& [u, v] : subgraph_edges) {
+        if (has_edge(u, v)) {
+            new_subgraph->add_vertex(u, vertex_data(u));
+            new_subgraph->add_vertex(v, vertex_data(v));
+
+            new_subgraph->add_edge(u, v, edge_data(u, v));
+        }
+    }
+
+    return new_subgraph;
+}
+
 
 ////////////////////////////////////////////////////////////////
 /// \brief order
