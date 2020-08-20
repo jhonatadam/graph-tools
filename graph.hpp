@@ -3,6 +3,7 @@
 
 
 #include <memory>
+#include <coroutine>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -61,14 +62,14 @@ public:
     bool has_vertex(const Vertex &u) const;
     bool has_edge(const Vertex &u, const Vertex &v) const;
 
-    auto vertices() const;
-    auto edges() const;
+    generator<Vertex const&> vertices() const;
+    generator<pair<Vertex, Vertex> const&> edges() const;
 
     Graph * subgraph(vector<Vertex> const& subgraph_vertices) const;
     Graph * subgraph(vector<pair<long, long>> const& subgraph_edges) const; // *
 
     // PROPERTIES
-    auto neighbors(const Vertex &u) const;
+    generator<Vertex const&> neighbors(const Vertex &u) const;
     size_t degree(const Vertex &u) const;
     size_t max_degree() const;
 
@@ -236,16 +237,13 @@ bool Graph<T_edata, T_vdata, T_vertex>::has_edge(
 /// \return
 ///
 template<class T_edata, class T_vdata, class T_vertex>
-auto Graph<T_edata, T_vdata, T_vertex>::neighbors(const Vertex &u) const
+generator<T_vertex const&>
+Graph<T_edata, T_vdata, T_vertex>::neighbors(const Vertex &u) const
 {
-    using AdjIt = typename Adjacency::const_iterator;
-    const Adjacency &u_adj = vmap.at(u).second;
-
-    return Generator<Vertex, AdjIt> (
-        u_adj.begin(),
-        u_adj.end(),
-        [](AdjIt const& it)-> Vertex {return it->first;}
-    );
+    const Adjacency &u_neigbors = vmap.at(u).second;
+    for (auto const& [neighbor, _] : u_neigbors) {
+        co_yield neighbor;
+    }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -279,15 +277,11 @@ size_t Graph<T_edata, T_vdata, T_vertex>::max_degree() const
 /// \return
 ///
 template<class T_edata, class T_vdata, class T_vertex>
-auto Graph<T_edata, T_vdata, T_vertex>::vertices() const
+generator<T_vertex const&>
+Graph<T_edata, T_vdata, T_vertex>::vertices() const
 {
-    using VMapIt = typename VertexMap::const_iterator;
-
-    return Generator<Vertex, VMapIt> (
-        vmap.begin(),
-        vmap.end(),
-        [](VMapIt it)->Vertex {return it->first;}
-    );
+    for (auto const& [vertex, _] : vmap)
+        co_yield vertex;
 }
 
 ////////////////////////////////////////////////////////////////
@@ -295,50 +289,17 @@ auto Graph<T_edata, T_vdata, T_vertex>::vertices() const
 /// \return
 ///
 template<class T_edata, class T_vdata, class T_vertex>
-auto Graph<T_edata, T_vdata, T_vertex>::edges() const
+generator<pair<T_vertex, T_vertex> const&> Graph<T_edata, T_vdata, T_vertex>::edges() const
 {
-    using VMapIt = typename VertexMap::const_iterator;
-    using AdjIt = typename Adjacency::const_iterator;
-    using State = tuple<VMapIt, AdjIt, unordered_set<Vertex>>;
-
-    VMapIt vmap_it = vmap.begin();
-    while (vmap_it != vmap.end() && vmap_it->second.second.empty())
-        vmap_it++;
-
-    AdjIt adj_begin, adj_end;
-    if (vmap_it != vmap.end()) {
-        adj_begin = vmap_it->second.second.begin();
-        adj_end = vmap_it->second.second.end();
-    }
-
-    return Generator<pair<Vertex, Vertex>, State> (
-        make_tuple(vmap_it, adj_begin, unordered_set<Vertex>()),
-        make_tuple(vmap.end(), adj_end, unordered_set<Vertex>()),
-        [](State const &state)-> pair<Vertex, Vertex> {
-            auto& [vmap_it, adj_it, visited] = state;
-            return make_pair(vmap_it->first, adj_it->first);
-        },
-        [this](State &state)-> void {
-            auto& [vmap_it, adj_it, seen] = state;
-
-            do {
-                if (adj_it != vmap_it->second.second.end()) {
-                    adj_it++;
-                } else {
-                    seen.insert(vmap_it->first);
-                    vmap_it++;
-                    if (vmap_it != vmap.end())
-                        adj_it = vmap_it->second.second.begin();
-                }
-
-            } while (vmap_it != vmap.end() &&
-                     (adj_it == vmap_it->second.second.end() ||
-                      seen.find(adj_it->first) != seen.end() ));
-        },
-        [](State const& s1, State const& s2)-> bool {
-            return get<0>(s1) == get<0>(s2);
+    unordered_set<Vertex> seen;
+    for (auto const& [u, u_info] : vmap) {
+        Adjacency const& neighbors = u_info.second;
+        for (auto const& [v, _] : neighbors) {
+            if (seen.find(v) == seen.end())
+                co_yield {u, v};
         }
-    );
+        seen.insert(u);
+    }
 }
 
 ////////////////////////////////////////////////////////////////
