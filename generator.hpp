@@ -27,7 +27,7 @@ namespace detail
 
 		generator_promise() = default;
 
-		generator<T> get_return_object() noexcept;
+        generator<T> get_return_object() noexcept;
 
 		constexpr std::suspend_always initial_suspend() const { return {}; }
 		constexpr std::suspend_always final_suspend() const { return {}; }
@@ -166,19 +166,19 @@ public:
 	using promise_type = detail::generator_promise<T>;
 	using iterator = detail::generator_iterator<T>;
 
-	generator() noexcept
+    generator() noexcept
 		: m_coroutine(nullptr)
 	{}
 
-	generator(generator&& other) noexcept
+    generator(generator&& other) noexcept
 		: m_coroutine(other.m_coroutine)
 	{
 		other.m_coroutine = nullptr;
 	}
 
-	generator(const generator& other) = delete;
+    generator(const generator& other) = delete;
 
-	~generator()
+    ~generator()
 	{
 		if (m_coroutine)
 		{
@@ -186,7 +186,7 @@ public:
 		}
 	}
 
-	generator& operator=(generator other) noexcept
+    generator& operator=(generator other) noexcept
 	{
 		swap(other);
 		return *this;
@@ -211,7 +211,7 @@ public:
 		return detail::generator_sentinel{};
 	}
 
-	void swap(generator& other) noexcept
+    void swap(generator& other) noexcept
 	{
 		std::swap(m_coroutine, other.m_coroutine);
 	}
@@ -220,7 +220,7 @@ private:
 
 	friend class detail::generator_promise<T>;
 
-	explicit generator(std::coroutine_handle<promise_type> coroutine) noexcept
+    explicit generator(std::coroutine_handle<promise_type> coroutine) noexcept
 		: m_coroutine(coroutine)
 	{}
 
@@ -237,10 +237,10 @@ void swap(generator<T>& a, generator<T>& b)
 namespace detail
 {
 	template<typename T>
-	generator<T> generator_promise<T>::get_return_object() noexcept
+    generator<T> generator_promise<T>::get_return_object() noexcept
 	{
 		using coroutine_handle = std::coroutine_handle<generator_promise<T>>;
-		return generator<T>{ coroutine_handle::from_promise(*this) };
+        return generator<T>{ coroutine_handle::from_promise(*this) };
 	}
 }
 
